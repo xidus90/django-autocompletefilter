@@ -53,9 +53,9 @@ class AutocompleteListFilter(RelatedFieldListFilter):
         namespace = self.get_admin_namespace()
         return reverse("%s:autocomplete" % namespace)
 
-    def field_choices(self, field, request, model_admin):
-        # Do not populate the field choices with a huge queryset
-        return []
+    #def field_choices(self, field, request, model_admin):
+    #    # Do not populate the field choices with a huge queryset
+    #    return []
 
     def choices(self, changelist):
         """
@@ -78,6 +78,8 @@ class AutocompleteListFilter(RelatedFieldListFilter):
             else:
                 instance = self.field.related_model.objects.get(pk=self.lookup_val)
             lookup_display = str(instance)
+            print(instance)
+            print(lookup_display)
 
         model = self.field.model
 
@@ -95,3 +97,75 @@ class AutocompleteListFilter(RelatedFieldListFilter):
             "model_name": model._meta.model_name,
             "field_name": self.field.name,
         }
+
+    def data(self, changelist):
+        """
+        Get choices for the widget.
+
+        Yields a single choice populated with template context variables.
+
+        """
+        add_facets = changelist.add_facets
+        facet_counts = self.get_facet_queryset(changelist) if add_facets else None
+
+        url = self.get_url()
+        placeholder = "PKVAL"
+        model = self.field.model
+
+        print(f'add_facets: {add_facets}')
+        print(f'facet_counts: {facet_counts}')
+        print(f'lookup_choices:')
+        print(self.lookup_choices)
+        print(f'lookup_val: {self.lookup_val}')
+
+
+        for pk_val, val in self.lookup_choices:
+            if add_facets:
+                print('lookup_choice')
+                count = facet_counts[f"{pk_val}__c"]
+                val = f"{val} ({count})"
+                
+                print(f'val: {val}')
+            yield {
+                "selected": self.lookup_val is not None and str(pk_val) in self.lookup_val,
+                "query_string": changelist.get_query_string(
+                    {self.lookup_kwarg: pk_val}, [self.lookup_kwarg_isnull]
+                ),
+                "display": val,
+
+                "url": url,
+                "query_string_placeholder": placeholder,
+                "query_string_all": changelist.get_query_string(
+                    {}, [self.lookup_kwarg, self.lookup_kwarg_isnull]
+                ),
+                "app_label": model._meta.app_label,
+                "model_name": model._meta.model_name,
+                "field_name": self.field.name,
+            }
+
+        lookup_display = None
+        if self.lookup_val:
+            if django.VERSION >= (5, 0):
+                instance = self.field.related_model.objects.get(pk=self.lookup_val[-1])
+            else:
+                instance = self.field.related_model.objects.get(pk=self.lookup_val)
+            print(instance)
+            lookup_display = f"{instance}__c"
+
+        query_string = changelist.get_query_string(
+            {self.lookup_kwarg: placeholder}, [self.lookup_kwarg_isnull]
+        )
+        #yield {
+        #    "url": url,
+        #    "selected": self.lookup_val is not None,
+        #    "selected_display": lookup_display,
+        #    "query_string": query_string,
+        #    "query_string_placeholder": placeholder,
+        #    "query_string_all": changelist.get_query_string(
+        #        {}, [self.lookup_kwarg, self.lookup_kwarg_isnull]
+        #    ),
+        #    # Data attrs required for Django 3.2+
+        #    "app_label": model._meta.app_label,
+        #    "model_name": model._meta.model_name,
+        #    "field_name": self.field.name,
+        #}
